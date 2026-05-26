@@ -86,7 +86,18 @@
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM"
                 },
                 {
-                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
+                  "vec": [
+                    {
+                      "vec": [
+                        {
+                          "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
+                        },
+                        {
+                          "u32": 10000
+                        }
+                      ]
+                    }
+                  ]
                 },
                 {
                   "string": "School Rebuild"
@@ -429,37 +440,6 @@
           "contract_data": {
             "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4",
             "key": {
-              "symbol": "NEXT"
-            },
-            "durability": "persistent"
-          }
-        },
-        [
-          {
-            "last_modified_ledger_seq": 0,
-            "data": {
-              "contract_data": {
-                "ext": "v0",
-                "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4",
-                "key": {
-                  "symbol": "NEXT"
-                },
-                "durability": "persistent",
-                "val": {
-                  "u64": 2
-                }
-              }
-            },
-            "ext": "v0"
-          },
-          4095
-        ]
-      ],
-      [
-        {
-          "contract_data": {
-            "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4",
-            "key": {
               "vec": [
                 {
                   "symbol": "CMP"
@@ -502,10 +482,21 @@
                     },
                     {
                       "key": {
-                        "symbol": "beneficiary"
+                        "symbol": "beneficiaries"
                       },
                       "val": {
-                        "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
+                        "vec": [
+                          {
+                            "vec": [
+                              {
+                                "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
+                              },
+                              {
+                                "u32": 10000
+                              }
+                            ]
+                          }
+                        ]
                       }
                     },
                     {
@@ -587,6 +578,65 @@
         {
           "contract_data": {
             "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4",
+            "key": {
+              "vec": [
+                {
+                  "symbol": "TDON"
+                },
+                {
+                  "u64": 1
+                }
+              ]
+            },
+            "durability": "persistent"
+          }
+        },
+        [
+          {
+            "last_modified_ledger_seq": 0,
+            "data": {
+              "contract_data": {
+                "ext": "v0",
+                "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4",
+                "key": {
+                  "vec": [
+                    {
+                      "symbol": "TDON"
+                    },
+                    {
+                      "u64": 1
+                    }
+                  ]
+                },
+                "durability": "persistent",
+                "val": {
+                  "vec": [
+                    {
+                      "vec": [
+                        {
+                          "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
+                        },
+                        {
+                          "i128": {
+                            "hi": 0,
+                            "lo": 120000
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            },
+            "ext": "v0"
+          },
+          4095
+        ]
+      ],
+      [
+        {
+          "contract_data": {
+            "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4",
             "key": "ledger_key_contract_instance",
             "durability": "persistent"
           }
@@ -605,7 +655,16 @@
                     "executable": {
                       "wasm": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
                     },
-                    "storage": null
+                    "storage": [
+                      {
+                        "key": {
+                          "symbol": "NEXT"
+                        },
+                        "val": {
+                          "u64": 2
+                        }
+                      }
+                    ]
                   }
                 }
               }
@@ -1365,7 +1424,18 @@
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM"
                 },
                 {
-                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
+                  "vec": [
+                    {
+                      "vec": [
+                        {
+                          "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
+                        },
+                        {
+                          "u32": 10000
+                        }
+                      ]
+                    }
+                  ]
                 },
                 {
                   "string": "School Rebuild"
@@ -1905,9 +1975,6 @@
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM"
                 },
                 {
-                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
-                },
-                {
                   "i128": {
                     "hi": 0,
                     "lo": 120000
@@ -2054,10 +2121,21 @@
                 },
                 {
                   "key": {
-                    "symbol": "beneficiary"
+                    "symbol": "beneficiaries"
                   },
                   "val": {
-                    "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
+                    "vec": [
+                      {
+                        "vec": [
+                          {
+                            "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
+                          },
+                          {
+                            "u32": 10000
+                          }
+                        ]
+                      }
+                    ]
                   }
                 },
                 {

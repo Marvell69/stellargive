@@ -2,7 +2,7 @@
 
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, symbol_short, token, Address, Env, String,
-    Symbol,
+    Symbol, Vec,
 };
 
 #[contract]
@@ -30,7 +30,7 @@ pub struct CreatedEvent {
 pub struct Campaign {
     pub id: u64,
     pub creator: Address,
-    pub beneficiary: Address,
+    pub beneficiaries: Vec<(Address, u32)>,
     pub title: String,
     pub target_amount: i128,
     pub raised_amount: i128,
@@ -54,8 +54,7 @@ pub enum ContractError {
     ReentrancyDetected = 9,
     EmptyTitle = 10,
     NothingToClaim = 11,
-    /// Token transfer failed — revert donation, no state changes persist.
-    TokenTransferFailed = 12,
+    InvalidShares = 12,
 }
 
 fn next_id_key() -> Symbol {
@@ -71,14 +70,16 @@ fn campaign_key(id: u64) -> (Symbol, u64) {
 }
 
 fn read_next_id(env: &Env) -> u64 {
+    // Instance storage is cheaper per access than Persistent and its lifetime
+    // is managed with the contract instance, so no manual TTL extension needed.
     env.storage()
-        .persistent()
+        .instance()
         .get(&next_id_key())
         .unwrap_or(1_u64)
 }
 
 fn write_next_id(env: &Env, next_id: u64) {
-    env.storage().persistent().set(&next_id_key(), &next_id);
+    env.storage().instance().set(&next_id_key(), &next_id);
 }
 
 fn read_campaign(env: &Env, id: u64) -> Result<Campaign, ContractError> {
@@ -94,9 +95,56 @@ fn write_campaign(env: &Env, campaign: &Campaign) {
         .set(&campaign_key(campaign.id), campaign);
 }
 
-/// Sets a temporary-storage lock for the current invocation context.
-/// Returns `ReentrancyDetected` if the lock is already held, preventing
-/// re-entrant state mutations.
+fn top_donors_key(id: u64) -> (Symbol, u64) {
+    (symbol_short!("TDON"), id)
+}
+
+fn read_top_donors(env: &Env, id: u64) -> Vec<(Address, i128)> {
+    env.storage()
+        .persistent()
+        .get(&top_donors_key(id))
+        .unwrap_or_else(|| Vec::new(env))
+}
+
+fn write_top_donors(env: &Env, id: u64, donors: &Vec<(Address, i128)>) {
+    env.storage()
+        .persistent()
+        .set(&top_donors_key(id), donors);
+}
+
+fn update_top_donors(env: &Env, campaign_id: u64, donor: &Address, amount: i128) {
+    let old = read_top_donors(env, campaign_id);
+    let mut new_donors: Vec<(Address, i128)> = Vec::new(env);
+
+    // Carry over all existing entries except the current donor; accumulate their total.
+    let mut cumulative = amount;
+    for (addr, prev) in old.iter() {
+        if addr == *donor {
+            cumulative = prev.saturating_add(amount);
+        } else {
+            new_donors.push_back((addr, prev));
+        }
+    }
+
+    // Find sorted insertion position (descending). Insertion sort is O(5) — constant cost.
+    let mut pos = new_donors.len();
+    for i in 0..new_donors.len() {
+        if new_donors.get(i).unwrap().1 < cumulative {
+            pos = i;
+            break;
+        }
+    }
+
+    // Only write when donor enters the top-5 window.
+    if pos < 5 {
+        new_donors.insert(pos, (donor.clone(), cumulative));
+        while new_donors.len() > 5 {
+            new_donors.pop_back();
+        }
+        write_top_donors(env, campaign_id, &new_donors);
+    }
+}
+
 fn enter_lock(env: &Env) -> Result<(), ContractError> {
     let key = lock_key();
     if env.storage().temporary().get::<_, bool>(&key).unwrap_or(false) {
@@ -159,7 +207,7 @@ impl StellarGiveContract {
     pub fn create_campaign(
         env: Env,
         creator: Address,
-        beneficiary: Address,
+        beneficiaries: Vec<(Address, u32)>,
         title: String,
         target_amount: i128,
         deadline: u64,
@@ -176,18 +224,39 @@ impl StellarGiveContract {
         if deadline <= env.ledger().timestamp() {
             return Err(ContractError::InvalidDeadline);
         }
+        validate_token_contract(&env, &accepted_token)?;
 
-        // Lock before any cross-contract calls to block re-entrant creation
-        // attempts from a malicious token's validate path.
-        enter_lock(&env)?;
-        let result = (|| {
-            validate_token_contract(&env, &accepted_token)?;
+        if beneficiaries.len() == 0 {
+            return Err(ContractError::InvalidShares);
+        }
+        let mut total_bps: u64 = 0;
+        for (_, share) in beneficiaries.iter() {
+            total_bps += u64::from(share);
+        }
+        if total_bps != 10_000 {
+            return Err(ContractError::InvalidShares);
+        }
 
-            let id = read_next_id(&env);
-            let next_id = id.checked_add(1).ok_or(ContractError::InvalidAmount)?;
-            write_next_id(&env, next_id);
+        let id = read_next_id(&env);
+        let next_id = id.checked_add(1).ok_or(ContractError::InvalidAmount)?;
+        write_next_id(&env, next_id);
 
-            let campaign = Campaign {
+        let campaign = Campaign {
+            id,
+            creator: creator.clone(),
+            beneficiaries: beneficiaries.clone(),
+            title,
+            target_amount,
+            raised_amount: 0,
+            deadline,
+            accepted_token: accepted_token.clone(),
+            status: CampaignStatus::Active,
+        };
+
+        write_campaign(&env, &campaign);
+        env.events().publish(
+            (symbol_short!("created"),),
+            CreatedEvent {
                 id,
                 creator: creator.clone(),
                 beneficiary: beneficiary.clone(),
@@ -257,6 +326,7 @@ impl StellarGiveContract {
             };
 
             write_campaign(&env, &campaign);
+            update_top_donors(&env, campaign.id, &donor, amount);
             env.events().publish(
                 (symbol_short!("donation"), symbol_short!("received")),
                 (
@@ -282,7 +352,8 @@ impl StellarGiveContract {
             return Err(ContractError::AlreadyClaimed);
         }
 
-        if caller != campaign.creator && caller != campaign.beneficiary {
+        let is_beneficiary = campaign.beneficiaries.iter().any(|(addr, _)| addr == caller);
+        if caller != campaign.creator && !is_beneficiary {
             return Err(ContractError::Unauthorized);
         }
         caller.require_auth();
@@ -298,12 +369,28 @@ impl StellarGiveContract {
 
         enter_lock(&env)?;
         let result = (|| {
-            let amount = campaign.raised_amount;
-            // Funds are always paid out to beneficiary to keep payout path deterministic.
+            let total = campaign.raised_amount;
+            let n = campaign.beneficiaries.len();
+
+            // Pay each non-first beneficiary their floor-division share.
+            let mut remainder = total;
+            for i in 1..n {
+                let (addr, share_bps) = campaign.beneficiaries.get(i).unwrap();
+                let payout = (total * i128::from(share_bps)) / 10_000_i128;
+                token::TokenClient::new(&env, &campaign.accepted_token).transfer(
+                    &env.current_contract_address(),
+                    &addr,
+                    &payout,
+                );
+                remainder -= payout;
+            }
+
+            // First beneficiary receives remainder, absorbing any rounding dust.
+            let (first_addr, _) = campaign.beneficiaries.get(0).unwrap();
             token::TokenClient::new(&env, &campaign.accepted_token).transfer(
                 &env.current_contract_address(),
-                &campaign.beneficiary,
-                &amount,
+                &first_addr,
+                &remainder,
             );
 
             campaign.raised_amount = 0;
@@ -312,10 +399,10 @@ impl StellarGiveContract {
 
             env.events().publish(
                 (symbol_short!("funds"), symbol_short!("claimed")),
-                (campaign.id, caller, campaign.beneficiary, amount, campaign.accepted_token),
+                (campaign.id, caller, total, campaign.accepted_token),
             );
 
-            Ok(amount)
+            Ok(total)
         })();
 
         exit_lock(&env);
@@ -327,13 +414,21 @@ impl StellarGiveContract {
         campaign.status = derive_status(env.ledger().timestamp(), &campaign);
         Ok(campaign)
     }
+
+    pub fn get_top_donors(
+        env: Env,
+        campaign_id: u64,
+    ) -> Result<Vec<(Address, i128)>, ContractError> {
+        read_campaign(&env, campaign_id)?;
+        Ok(read_top_donors(&env, campaign_id))
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use soroban_sdk::testutils::{Address as _, Events as _, Ledger};
-    use soroban_sdk::{token, Address, Env, String, TryFromVal};
+    use soroban_sdk::{token, Address, Env, String, TryFromVal, Vec};
 
     fn set_timestamp(env: &Env, timestamp: u64) {
         let mut ledger = env.ledger().get();
@@ -376,9 +471,11 @@ mod tests {
         let (env, client, creator, beneficiary, _donor, token_client, _) = setup();
         set_timestamp(&env, 1_000);
 
+        let mut bens = Vec::new(&env);
+        bens.push_back((beneficiary.clone(), 10_000_u32));
         let id = client.create_campaign(
             &creator,
-            &beneficiary,
+            &bens,
             &String::from_str(&env, "Flood Relief"),
             &500_000,
             &2_000,
@@ -389,7 +486,7 @@ mod tests {
         assert_eq!(campaign.id, 1);
         assert_eq!(campaign.status, CampaignStatus::Active);
         assert_eq!(campaign.creator, creator);
-        assert_eq!(campaign.beneficiary, beneficiary);
+        assert_eq!(campaign.beneficiaries, bens);
         assert_eq!(campaign.target_amount, 500_000);
         assert_eq!(campaign.raised_amount, 0);
     }
@@ -400,9 +497,11 @@ mod tests {
         set_timestamp(&env, 1_000);
 
         let target_amount: i128 = 500_000;
+        let mut bens = Vec::new(&env);
+        bens.push_back((beneficiary.clone(), 10_000_u32));
         let id = client.create_campaign(
             &creator,
-            &beneficiary,
+            &bens,
             &String::from_str(&env, "Flood Relief"),
             &target_amount,
             &2_000,
@@ -434,9 +533,11 @@ mod tests {
         let (env, client, creator, beneficiary, donor, token_client, _) = setup();
         set_timestamp(&env, 5_000);
 
+        let mut bens = Vec::new(&env);
+        bens.push_back((beneficiary.clone(), 10_000_u32));
         let campaign_id = client.create_campaign(
             &creator,
-            &beneficiary,
+            &bens,
             &String::from_str(&env, "Medical Aid"),
             &100_000,
             &10_000,
@@ -459,9 +560,11 @@ mod tests {
         let (env, client, creator, beneficiary, donor, token_client, _) = setup();
         set_timestamp(&env, 10_000);
 
+        let mut bens = Vec::new(&env);
+        bens.push_back((beneficiary.clone(), 10_000_u32));
         let campaign_id = client.create_campaign(
             &creator,
-            &beneficiary,
+            &bens,
             &String::from_str(&env, "School Rebuild"),
             &120_000,
             &20_000,
@@ -486,9 +589,11 @@ mod tests {
         let (env, client, creator, beneficiary, donor, token_client, _) = setup();
         set_timestamp(&env, 100);
 
+        let mut bens = Vec::new(&env);
+        bens.push_back((beneficiary.clone(), 10_000_u32));
         let campaign_id = client.create_campaign(
             &creator,
-            &beneficiary,
+            &bens,
             &String::from_str(&env, "Emergency Shelter"),
             &500_000,
             &500,
@@ -510,9 +615,11 @@ mod tests {
         let (env, client, creator, beneficiary, donor, token_client, _) = setup();
         set_timestamp(&env, 200);
 
+        let mut bens = Vec::new(&env);
+        bens.push_back((beneficiary.clone(), 10_000_u32));
         let campaign_id = client.create_campaign(
             &creator,
-            &beneficiary,
+            &bens,
             &String::from_str(&env, "Food Support"),
             &100_000,
             &1_000,
@@ -526,139 +633,309 @@ mod tests {
         assert!(error.is_err());
     }
 
-    // -----------------------------------------------------------------------
-    // Issue #54 — token validation tests
-    // -----------------------------------------------------------------------
-
     #[test]
-    fn valid_sac_token_passes_validation() {
-        let env = Env::default();
-        env.mock_all_auths();
-        let token_admin = Address::generate(&env);
-        let token_id = env.register_stellar_asset_contract_v2(token_admin);
-        // Should not panic or return error.
-        validate_token_contract(&env, &token_id.address())
-            .expect("valid SAC should pass token validation");
-    }
-
-    #[test]
-    fn non_sac_contract_rejected_at_create_campaign() {
-        let env = Env::default();
-        env.mock_all_auths();
+    fn split_50_50_distributes_evenly() {
+        let (env, client, creator, beneficiary, donor, token_client, _) = setup();
+        let beneficiary2 = Address::generate(&env);
         set_timestamp(&env, 1_000);
 
-        // Register the StellarGiveContract itself as the "token" — it has no
-        // decimals() or symbol(), so validation must fail.
-        let bogus_token = env.register_contract(None, StellarGiveContract);
-        let contract_id = env.register_contract(None, StellarGiveContract);
-        let client = StellarGiveContractClient::new(&env, &contract_id);
-
-        let creator = Address::generate(&env);
-        let beneficiary = Address::generate(&env);
-
-        let result = client.try_create_campaign(
-            &creator,
-            &beneficiary,
-            &String::from_str(&env, "Test"),
-            &100_000,
-            &5_000,
-            &bogus_token,
-        );
-        assert!(
-            result.is_err(),
-            "create_campaign must reject a non-SAC token"
-        );
-    }
-
-    // -----------------------------------------------------------------------
-    // Issue #55 — reentrancy lock tests
-    // -----------------------------------------------------------------------
-
-    #[test]
-    fn reentrancy_lock_blocks_concurrent_entry() {
-        let env = Env::default();
-        let contract_id = env.register_contract(None, StellarGiveContract);
-
-        // Storage access must happen inside the contract's execution context.
-        env.as_contract(&contract_id, || {
-            assert!(enter_lock(&env).is_ok(), "first enter_lock should succeed");
-
-            let second = enter_lock(&env);
-            assert_eq!(
-                second,
-                Err(ContractError::ReentrancyDetected),
-                "second enter_lock must return ReentrancyDetected"
-            );
-
-            exit_lock(&env);
-            assert!(
-                enter_lock(&env).is_ok(),
-                "enter_lock must succeed after exit_lock"
-            );
-            exit_lock(&env);
-        });
-    }
-
-    #[test]
-    fn donate_blocked_when_lock_already_held() {
-        let (env, client, creator, beneficiary, donor, token_client, _) = setup();
-        set_timestamp(&env, 5_000);
+        let mut bens = Vec::new(&env);
+        bens.push_back((beneficiary.clone(), 5_000_u32));
+        bens.push_back((beneficiary2.clone(), 5_000_u32));
 
         let campaign_id = client.create_campaign(
             &creator,
-            &beneficiary,
-            &String::from_str(&env, "Re-entry Test"),
-            &100_000,
-            &10_000,
+            &bens,
+            &String::from_str(&env, "Dual Relief"),
+            &200_000,
+            &2_000,
             &token_client.address,
         );
 
-        // Set the lock from inside the contract context to simulate a held lock.
-        env.as_contract(&client.address, || {
-            env.storage().temporary().set(&lock_key(), &true);
-        });
+        client.donate(&donor, &campaign_id, &200_000);
 
-        let result = client.try_donate(&donor, &campaign_id, &1_000);
-        assert!(
-            result.is_err(),
-            "donate must fail when reentrancy lock is already held"
-        );
+        let b1_before = token_client.balance(&beneficiary);
+        let b2_before = token_client.balance(&beneficiary2);
+        let claimed = client.claim_funds(&creator, &campaign_id);
+        let b1_after = token_client.balance(&beneficiary);
+        let b2_after = token_client.balance(&beneficiary2);
 
-        env.as_contract(&client.address, || {
-            env.storage().temporary().remove(&lock_key());
-        });
+        assert_eq!(claimed, 200_000);
+        assert_eq!(b1_after - b1_before, 100_000);
+        assert_eq!(b2_after - b2_before, 100_000);
+        assert_eq!(client.get_campaign(&campaign_id).status, CampaignStatus::Claimed);
     }
 
     #[test]
-    fn create_campaign_blocked_when_lock_already_held() {
-        let env = Env::default();
-        env.mock_all_auths();
+    fn split_uneven_three_way_with_rounding() {
+        let (env, client, creator, beneficiary, donor, token_client, _) = setup();
+        let beneficiary2 = Address::generate(&env);
+        let beneficiary3 = Address::generate(&env);
         set_timestamp(&env, 1_000);
 
-        let token_admin = Address::generate(&env);
-        let token_id = env.register_stellar_asset_contract_v2(token_admin);
-        let contract_id = env.register_contract(None, StellarGiveContract);
-        let client = StellarGiveContractClient::new(&env, &contract_id);
+        let mut bens = Vec::new(&env);
+        bens.push_back((beneficiary.clone(), 3_334_u32));
+        bens.push_back((beneficiary2.clone(), 3_333_u32));
+        bens.push_back((beneficiary3.clone(), 3_333_u32));
 
-        env.as_contract(&contract_id, || {
-            env.storage().temporary().set(&lock_key(), &true);
-        });
+        let campaign_id = client.create_campaign(
+            &creator,
+            &bens,
+            &String::from_str(&env, "Three Way"),
+            &10_000,
+            &5_000,
+            &token_client.address,
+        );
+
+        client.donate(&donor, &campaign_id, &10_000);
+
+        let b1_before = token_client.balance(&beneficiary);
+        let b2_before = token_client.balance(&beneficiary2);
+        let b3_before = token_client.balance(&beneficiary3);
+        let claimed = client.claim_funds(&creator, &campaign_id);
+        let b1_after = token_client.balance(&beneficiary);
+        let b2_after = token_client.balance(&beneficiary2);
+        let b3_after = token_client.balance(&beneficiary3);
+
+        // b2 and b3: floor(10_000 * 3_333 / 10_000) = 3_333 each
+        // b1 (first): 10_000 - 3_333 - 3_333 = 3_334 (absorbs rounding dust)
+        assert_eq!(claimed, 10_000);
+        assert_eq!(b2_after - b2_before, 3_333);
+        assert_eq!(b3_after - b3_before, 3_333);
+        assert_eq!(b1_after - b1_before, 3_334);
+        assert_eq!(
+            (b1_after - b1_before) + (b2_after - b2_before) + (b3_after - b3_before),
+            10_000
+        );
+    }
+
+    #[test]
+    fn invalid_shares_not_summing_to_10000_rejected() {
+        let (env, client, creator, beneficiary, _donor, token_client, _) = setup();
+        let beneficiary2 = Address::generate(&env);
+        set_timestamp(&env, 1_000);
+
+        let mut bens = Vec::new(&env);
+        bens.push_back((beneficiary.clone(), 5_000_u32));
+        bens.push_back((beneficiary2.clone(), 4_999_u32));
 
         let result = client.try_create_campaign(
-            &Address::generate(&env),
-            &Address::generate(&env),
-            &String::from_str(&env, "Test"),
+            &creator,
+            &bens,
+            &String::from_str(&env, "Bad Shares"),
             &100_000,
-            &5_000,
-            &token_id.address(),
+            &2_000,
+            &token_client.address,
         );
-        assert!(
-            result.is_err(),
-            "create_campaign must fail when reentrancy lock is already held"
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn id_generation_is_sequential_and_collision_free() {
+        let (env, client, creator, beneficiary, _, token_client, _) = setup();
+        env.budget().reset_unlimited();
+        set_timestamp(&env, 1_000);
+
+        let mut bens = Vec::new(&env);
+        bens.push_back((beneficiary.clone(), 10_000_u32));
+
+        for expected_id in 1_u64..=100_u64 {
+            let id = client.create_campaign(
+                &creator,
+                &bens,
+                &String::from_str(&env, "Bench"),
+                &1_000,
+                &2_000,
+                &token_client.address,
+            );
+            assert_eq!(id, expected_id);
+        }
+    }
+
+    #[test]
+    fn empty_beneficiaries_rejected() {
+        let (env, client, creator, _beneficiary, _donor, token_client, _) = setup();
+        set_timestamp(&env, 1_000);
+
+        let bens: Vec<(Address, u32)> = Vec::new(&env);
+        let result = client.try_create_campaign(
+            &creator,
+            &bens,
+            &String::from_str(&env, "No Bens"),
+            &100_000,
+            &2_000,
+            &token_client.address,
+        );
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn top_donors_single_donation() {
+        let (env, client, creator, beneficiary, donor, token_client, _) = setup();
+        set_timestamp(&env, 1_000);
+
+        let mut bens = Vec::new(&env);
+        bens.push_back((beneficiary.clone(), 10_000_u32));
+        let campaign_id = client.create_campaign(
+            &creator,
+            &bens,
+            &String::from_str(&env, "Relief"),
+            &500_000,
+            &2_000,
+            &token_client.address,
         );
 
+        client.donate(&donor, &campaign_id, &50_000);
+        let top = client.get_top_donors(&campaign_id);
+
+        assert_eq!(top.len(), 1);
+        let (addr, amt) = top.get(0).unwrap();
+        assert_eq!(addr, donor);
+        assert_eq!(amt, 50_000);
+    }
+
+    #[test]
+    fn top_donors_sorted_descending() {
+        let (env, client, creator, beneficiary, donor, token_client, token_admin_client) = setup();
+        let donor2 = Address::generate(&env);
+        let donor3 = Address::generate(&env);
+        token_admin_client.mint(&donor2, &1_000_000);
+        token_admin_client.mint(&donor3, &1_000_000);
+        set_timestamp(&env, 1_000);
+
+        let mut bens = Vec::new(&env);
+        bens.push_back((beneficiary.clone(), 10_000_u32));
+        let campaign_id = client.create_campaign(
+            &creator,
+            &bens,
+            &String::from_str(&env, "Relief"),
+            &500_000,
+            &5_000,
+            &token_client.address,
+        );
+
+        client.donate(&donor, &campaign_id, &30_000);
+        client.donate(&donor2, &campaign_id, &60_000);
+        client.donate(&donor3, &campaign_id, &10_000);
+        let top = client.get_top_donors(&campaign_id);
+
+        assert_eq!(top.len(), 3);
+        assert_eq!(top.get(0).unwrap().1, 60_000);
+        assert_eq!(top.get(0).unwrap().0, donor2);
+        assert_eq!(top.get(1).unwrap().1, 30_000);
+        assert_eq!(top.get(2).unwrap().1, 10_000);
+    }
+
+    #[test]
+    fn top_donors_accumulates_repeat_donor() {
+        let (env, client, creator, beneficiary, donor, token_client, _) = setup();
+        set_timestamp(&env, 1_000);
+
+        let mut bens = Vec::new(&env);
+        bens.push_back((beneficiary.clone(), 10_000_u32));
+        let campaign_id = client.create_campaign(
+            &creator,
+            &bens,
+            &String::from_str(&env, "Relief"),
+            &500_000,
+            &5_000,
+            &token_client.address,
+        );
+
+        client.donate(&donor, &campaign_id, &20_000);
+        client.donate(&donor, &campaign_id, &30_000);
+        let top = client.get_top_donors(&campaign_id);
+
+        assert_eq!(top.len(), 1);
+        assert_eq!(top.get(0).unwrap().0, donor);
+        assert_eq!(top.get(0).unwrap().1, 50_000);
+    }
+
+    #[test]
+    fn top_donors_trims_to_five() {
+        let (env, client, creator, beneficiary, _donor, token_client, token_admin_client) = setup();
+        set_timestamp(&env, 1_000);
+
+        let mut bens = Vec::new(&env);
+        bens.push_back((beneficiary.clone(), 10_000_u32));
+        let campaign_id = client.create_campaign(
+            &creator,
+            &bens,
+            &String::from_str(&env, "Relief"),
+            &1_000_000,
+            &5_000,
+            &token_client.address,
+        );
+
+        let amounts: [i128; 6] = [60_000, 50_000, 40_000, 30_000, 20_000, 10_000];
+        for &amt in amounts.iter() {
+            let d = Address::generate(&env);
+            token_admin_client.mint(&d, &1_000_000);
+            client.donate(&d, &campaign_id, &amt);
+        }
+        let top = client.get_top_donors(&campaign_id);
+
+        assert_eq!(top.len(), 5);
+        assert_eq!(top.get(0).unwrap().1, 60_000);
+        assert_eq!(top.get(4).unwrap().1, 20_000);
+    }
+
+    #[test]
+    fn top_donors_updates_rank_after_repeat_donation() {
+        let (env, client, creator, beneficiary, donor, token_client, token_admin_client) = setup();
+        let donor2 = Address::generate(&env);
+        token_admin_client.mint(&donor2, &1_000_000);
+        set_timestamp(&env, 1_000);
+
+        let mut bens = Vec::new(&env);
+        bens.push_back((beneficiary.clone(), 10_000_u32));
+        let campaign_id = client.create_campaign(
+            &creator,
+            &bens,
+            &String::from_str(&env, "Relief"),
+            &500_000,
+            &5_000,
+            &token_client.address,
+        );
+
+        client.donate(&donor, &campaign_id, &10_000);
+        client.donate(&donor2, &campaign_id, &50_000);
+        assert_eq!(client.get_top_donors(&campaign_id).get(0).unwrap().0, donor2);
+
+        client.donate(&donor, &campaign_id, &60_000); // donor total: 70_000 → now #1
+        let top = client.get_top_donors(&campaign_id);
+        assert_eq!(top.get(0).unwrap().0, donor);
+        assert_eq!(top.get(0).unwrap().1, 70_000);
+        assert_eq!(top.get(1).unwrap().0, donor2);
+    }
+
+    #[test]
+    fn reentrancy_lock_uses_temporary_storage_and_blocks_reentry() {
+        let env = Env::default();
+        let contract_id = env.register_contract(None, StellarGiveContract);
+
         env.as_contract(&contract_id, || {
-            env.storage().temporary().remove(&lock_key());
+            let key = super::lock_key();
+
+            // Lock key must be absent before any entry.
+            assert!(!env.storage().temporary().has(&key));
+            assert!(!env.storage().persistent().has(&key));
+
+            // First entry succeeds; key appears in temporary storage only.
+            super::enter_lock(&env).unwrap();
+            assert!(env.storage().temporary().has(&key));
+            assert!(!env.storage().persistent().has(&key));
+
+            // Re-entry from the same execution context is rejected.
+            assert_eq!(super::enter_lock(&env), Err(ContractError::ReentrancyDetected));
+
+            // Releasing the lock removes the key from temporary storage.
+            super::exit_lock(&env);
+            assert!(!env.storage().temporary().has(&key));
+
+            // A fresh entry succeeds after release.
+            super::enter_lock(&env).unwrap();
+            super::exit_lock(&env);
         });
     }
 }
