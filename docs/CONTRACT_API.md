@@ -77,6 +77,7 @@ pub fn donate(
     donor: Address,
     campaign_id: u64,
     amount: i128,
+    is_anonymous: bool,
 ) -> Result<(), ContractError>
 ```
 
@@ -86,6 +87,10 @@ Arguments
 - `donor` - Authorized donor address. Must call `require_auth()`.
 - `campaign_id` - ID of the campaign to donate to.
 - `amount` - Donation amount in stroops.
+- `is_anonymous` - If `true`, masks the donor address in emitted events and top donor listings with the zero address (`GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF`).
+
+> [!NOTE]
+> **Privacy Trade-offs:** On-chain ledger transfers remain public. The underlying token contract still records a transfer originating from the donor's address. `is_anonymous` only masks application-level events and dashboard displays.
 
 Returns
 

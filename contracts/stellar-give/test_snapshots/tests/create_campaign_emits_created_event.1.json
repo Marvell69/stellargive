@@ -38,7 +38,7 @@
                 {
                   "i128": {
                     "hi": 0,
-                    "lo": 1000000
+                    "lo": 1000000000000
                   }
                 }
               ]
@@ -63,7 +63,7 @@
                 {
                   "i128": {
                     "hi": 0,
-                    "lo": 1000000
+                    "lo": 1000000000000
                   }
                 }
               ]
@@ -124,7 +124,7 @@
                 {
                   "i128": {
                     "hi": 0,
-                    "lo": 500000
+                    "lo": 5000000
                   }
                 },
                 {
@@ -380,37 +380,6 @@
           "contract_data": {
             "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAOLZM",
             "key": {
-              "symbol": "NEXT"
-            },
-            "durability": "persistent"
-          }
-        },
-        [
-          {
-            "last_modified_ledger_seq": 0,
-            "data": {
-              "contract_data": {
-                "ext": "v0",
-                "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAOLZM",
-                "key": {
-                  "symbol": "NEXT"
-                },
-                "durability": "persistent",
-                "val": {
-                  "u64": 2
-                }
-              }
-            },
-            "ext": "v0"
-          },
-          4095
-        ]
-      ],
-      [
-        {
-          "contract_data": {
-            "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAOLZM",
-            "key": {
               "vec": [
                 {
                   "symbol": "CMP"
@@ -524,7 +493,7 @@
                       "val": {
                         "i128": {
                           "hi": 0,
-                          "lo": 500000
+                          "lo": 5000000
                         }
                       }
                     },
@@ -630,7 +599,7 @@
                       "val": {
                         "i128": {
                           "hi": 0,
-                          "lo": 1000000
+                          "lo": 1000000000000
                         }
                       }
                     },
@@ -703,7 +672,7 @@
                       "val": {
                         "i128": {
                           "hi": 0,
-                          "lo": 1000000
+                          "lo": 1000000000000
                         }
                       }
                     },
@@ -1014,7 +983,7 @@
                 {
                   "i128": {
                     "hi": 0,
-                    "lo": 1000000
+                    "lo": 1000000000000
                   }
                 }
               ]
@@ -1048,7 +1017,7 @@
             "data": {
               "i128": {
                 "hi": 0,
-                "lo": 1000000
+                "lo": 1000000000000
               }
             }
           }
@@ -1103,7 +1072,7 @@
                 {
                   "i128": {
                     "hi": 0,
-                    "lo": 1000000
+                    "lo": 1000000000000
                   }
                 }
               ]
@@ -1137,7 +1106,7 @@
             "data": {
               "i128": {
                 "hi": 0,
-                "lo": 1000000
+                "lo": 1000000000000
               }
             }
           }
@@ -1256,7 +1225,7 @@
                 {
                   "i128": {
                     "hi": 0,
-                    "lo": 500000
+                    "lo": 5000000
                   }
                 },
                 {
@@ -1403,7 +1372,7 @@
                   "val": {
                     "i128": {
                       "hi": 0,
-                      "lo": 500000
+                      "lo": 5000000
                     }
                   }
                 }

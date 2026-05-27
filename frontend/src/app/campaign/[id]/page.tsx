@@ -20,13 +20,6 @@ export default function CampaignDetails({ params }: { params: { id: string } }) 
         </h1>
         {campaign && <ShareButton campaign={campaign} />}
       </div>
-    <div className="p-8">
-      <div className="flex justify-between items-start">
-        <h1 className="text-2xl font-bold">
-          {isLoading ? <Skeleton className="h-8 w-64" /> : campaign?.title || `Campaign Details: ${params.id}`}
-        </h1>
-        {campaign && <ShareButton campaign={campaign} />}
-      </div>
       
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pt-4">
         <div className="lg:col-span-2 space-y-6">

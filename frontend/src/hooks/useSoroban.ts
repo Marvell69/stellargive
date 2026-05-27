@@ -81,13 +81,14 @@ export function useDonate() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (params: { campaignId: bigint; amount: string }) => {
+    mutationFn: async (params: { campaignId: bigint; amount: string; isAnonymous: boolean }) => {
       if (!address) throw new Error("Wallet not connected");
 
       const args = [
         new Address(address).toScVal(),
         nativeToScVal(params.campaignId, { type: "u64" }),
         nativeToScVal(toStroops(params.amount), { type: "i128" }),
+        nativeToScVal(params.isAnonymous, { type: "bool" }),
       ];
 
       return submitTransaction(address, "donate", args);
