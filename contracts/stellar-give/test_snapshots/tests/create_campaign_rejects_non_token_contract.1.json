@@ -1005,7 +1005,9 @@
                 },
                 {
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAOLZM"
-                }
+                },
+                "void",
+                "void"
               ]
             }
           }
@@ -1181,7 +1183,9 @@
                     },
                     {
                       "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAOLZM"
-                    }
+                    },
+                    "void",
+                    "void"
                   ]
                 }
               ]

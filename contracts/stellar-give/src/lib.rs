@@ -37,6 +37,8 @@ pub struct Campaign {
     pub deadline: u64,
     pub accepted_token: Address,
     pub status: CampaignStatus,
+    pub website: Option<String>,
+    pub twitter: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -59,6 +61,7 @@ pub enum ContractError {
     NotInitialized = 14,
     AlreadyInitialized = 15,
     InvalidDuration = 16,
+    InvalidUrl = 17,
 }
 
 fn next_id_key() -> Symbol {
@@ -227,6 +230,20 @@ fn sync_status(env: &Env, campaign: &mut Campaign) {
     }
 }
 
+fn validate_url(url: &String) -> Result<(), ContractError> {
+    let len = url.len() as usize;
+    if len < 8 || len > 200 {
+        return Err(ContractError::InvalidUrl);
+    }
+    let mut buf = [0u8; 200];
+    let dest_slice = &mut buf[0..len];
+    url.copy_into_slice(dest_slice);
+    if &dest_slice[0..8] != b"https://" {
+        return Err(ContractError::InvalidUrl);
+    }
+    Ok(())
+}
+
 /// Validates that `token_address` implements the Soroban token interface (SEP-41)
 /// by calling two lightweight read methods. Returns `InvalidToken` if either
 /// call fails, preventing campaigns from being created with non-compliant or
@@ -276,6 +293,8 @@ impl StellarGiveContract {
         target_amount: i128,
         deadline: u64,
         accepted_token: Address,
+        website: Option<String>,
+        twitter: Option<String>,
     ) -> Result<u64, ContractError> {
         creator.require_auth();
 
@@ -293,6 +312,14 @@ impl StellarGiveContract {
         // not linger indefinitely and increase ledger storage pressure.
         if deadline - now > MAX_DURATION {
             return Err(ContractError::InvalidDuration);
+        }
+
+        // Validate URLs if provided.
+        if let Some(ref url) = website {
+            validate_url(url)?;
+        }
+        if let Some(ref url) = twitter {
+            validate_url(url)?;
         }
 
         // Validate that the token contract implements the Soroban token interface
@@ -324,6 +351,8 @@ impl StellarGiveContract {
             deadline,
             accepted_token: accepted_token.clone(),
             status: CampaignStatus::Active,
+            website,
+            twitter,
         };
 
         write_campaign(&env, &campaign);
@@ -598,6 +627,8 @@ mod tests {
             &5_000_000,
             &2_000,
             &token_client.address,
+            &None,
+            &None,
         );
 
         let campaign = client.get_campaign(&id);
@@ -623,6 +654,8 @@ mod tests {
             &target_amount,
             &2_000,
             &token_client.address,
+            &None,
+            &None,
         );
 
         let event = env
@@ -660,6 +693,8 @@ mod tests {
             &5_000_000,
             &(1_000 + MAX_DURATION),
             &token_client.address,
+            &None,
+            &None,
         );
         assert_eq!(id, 1);
 
@@ -671,6 +706,8 @@ mod tests {
             &5_000_000,
             &(1_000 + MAX_DURATION + 1),
             &token_client.address,
+            &None,
+            &None,
         );
         assert!(result.is_err());
     }
@@ -693,6 +730,8 @@ mod tests {
             &5_000_000,
             &2_000,
             &token_client.address,
+            &None,
+            &None,
         );
         assert!(result.is_ok(), "valid SAC token must be accepted");
     }
@@ -714,6 +753,8 @@ mod tests {
             &5_000_000,
             &2_000,
             &not_a_token,
+            &None,
+            &None,
         );
         assert!(result.is_err(), "non-token contract address must be rejected");
     }
@@ -735,6 +776,8 @@ mod tests {
             &3_000_000,
             &10_000,
             &token_client.address,
+            &None,
+            &None,
         );
 
         client.donate(&donor, &campaign_id, &1_000_000, &false);
@@ -761,6 +804,8 @@ mod tests {
             &5_000_000,
             &10_000,
             &token_client.address,
+            &None,
+            &None,
         );
 
         let result = client.try_donate(&donor, &campaign_id, &999_999, &false);
@@ -780,6 +825,8 @@ mod tests {
             &3_000_000,
             &10_000,
             &token_client.address,
+            &None,
+            &None,
         );
 
         let before_bal = token_client.balance(&donor);
@@ -834,6 +881,8 @@ mod tests {
             &3_000_000,
             &10_000,
             &token_client.address,
+            &None,
+            &None,
         );
 
         client.donate(&donor, &campaign_id, &1_000_000, &false);
@@ -881,6 +930,8 @@ mod tests {
             &12_000_000,
             &20_000,
             &token_client.address,
+            &None,
+            &None,
         );
 
         client.donate(&donor, &campaign_id, &12_000_000, &false);
@@ -913,6 +964,8 @@ mod tests {
             &50_000_000,
             &500,
             &token_client.address,
+            &None,
+            &None,
         );
 
         client.donate(&donor, &campaign_id, &5_000_000, &false);
@@ -938,6 +991,8 @@ mod tests {
             &5_000_000,
             &1_000,
             &token_client.address,
+            &None,
+            &None,
         );
         client.donate(&donor, &campaign_id, &1_000_000, &false);
         set_timestamp(&env, 1_100);
@@ -968,6 +1023,8 @@ mod tests {
             &20_000_000,
             &2_000,
             &token_client.address,
+            &None,
+            &None,
         );
 
         client.donate(&donor, &campaign_id, &20_000_000, &false);
@@ -1013,6 +1070,8 @@ mod tests {
             &10_000_000,
             &2_000,
             &token_client.address,
+            &None,
+            &None,
         );
 
         client.donate(&donor, &campaign_id, &10_000_000, &false);
@@ -1056,6 +1115,8 @@ mod tests {
             &5_000_000,
             &2_000,
             &token_client.address,
+            &None,
+            &None,
         );
         assert!(result.is_err());
     }
@@ -1073,6 +1134,8 @@ mod tests {
             &5_000_000,
             &2_000,
             &token_client.address,
+            &None,
+            &None,
         );
         assert!(result.is_err());
     }
@@ -1096,6 +1159,8 @@ mod tests {
                 &1_000_000,
                 &2_000,
                 &token_client.address,
+                &None,
+                &None,
             );
             assert_eq!(id, expected_id);
         }
@@ -1117,6 +1182,8 @@ mod tests {
             &20_000_000,
             &2_000,
             &token_client.address,
+            &None,
+            &None,
         );
 
         client.donate(&donor, &campaign_id, &1_000_000, &false);
@@ -1188,6 +1255,8 @@ mod tests {
             &1_000_000,
             &20_000,
             &token_client.address,
+            &None,
+            &None,
         );
         client.donate(&donor, &campaign_id, &1_000_000, &false);
 
@@ -1214,6 +1283,8 @@ mod tests {
             &gross,
             &20_000,
             &token_client.address,
+            &None,
+            &None,
         );
         client.donate(&donor, &campaign_id, &gross, &false);
 
@@ -1260,6 +1331,8 @@ mod tests {
             &1_000_000,
             &5_000,
             &token_client.address,
+            &None,
+            &None,
         );
         client.donate(&donor, &campaign_id, &1_000_000, &false);
 
@@ -1280,5 +1353,52 @@ mod tests {
             result.is_err(),
             "initialize must reject a second call once admin is set"
         );
+    }
+
+    #[test]
+    fn create_campaign_validates_social_links() {
+        let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = setup();
+        set_timestamp(&env, 1_000);
+
+        let bens = single_ben(&env, &beneficiary);
+
+        // Valid https links are accepted
+        let result_ok = client.try_create_campaign(
+            &creator,
+            &bens,
+            &String::from_str(&env, "Valid Links Campaign"),
+            &5_000_000,
+            &2_000,
+            &token_client.address,
+            &Some(String::from_str(&env, "https://mywebsite.com")),
+            &Some(String::from_str(&env, "https://twitter.com/myhandle")),
+        );
+        assert!(result_ok.is_ok(), "valid https social links must be accepted");
+
+        // Invalid website link (non-https) is rejected
+        let result_err_web = client.try_create_campaign(
+            &creator,
+            &bens,
+            &String::from_str(&env, "Invalid Link Campaign"),
+            &5_000_000,
+            &2_000,
+            &token_client.address,
+            &Some(String::from_str(&env, "http://mywebsite.com")),
+            &None,
+        );
+        assert!(result_err_web.is_err(), "non-https website must be rejected");
+
+        // Invalid twitter link (non-https) is rejected
+        let result_err_tw = client.try_create_campaign(
+            &creator,
+            &bens,
+            &String::from_str(&env, "Invalid Link Campaign"),
+            &5_000_000,
+            &2_000,
+            &token_client.address,
+            &None,
+            &Some(String::from_str(&env, "twitter.com/myhandle")),
+        );
+        assert!(result_err_tw.is_err(), "non-https twitter must be rejected");
     }
 }
