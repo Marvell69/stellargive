@@ -91,7 +91,7 @@ export function CreateCampaignForm() {
   const tokenSymbol = selectedTokenMeta ? selectedTokenMeta.symbol : "Tokens";
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    if (createCampaign.isPending) return; // Prevent duplicate submissions
+    if (createCampaign.isPending || isUploadingImage) return; // Prevent duplicate submissions
 
     try {
       const deadline = Math.floor(Date.now() / 1000) + parseInt(values.deadlineDays) * 24 * 60 * 60;
@@ -107,6 +107,9 @@ export function CreateCampaignForm() {
       });
       setIsOpen(false);
       form.reset();
+      setSelectedFileName("");
+      setUploadError("");
+      setUploadProgress(0);
     } catch (e: any) {
       // Errors are already handled/displayed by the sonner toast inside the useCreateCampaign hook mutation wrapper,
       // but we catch it here to prevent uncaught promise rejections.
@@ -184,6 +187,12 @@ export function CreateCampaignForm() {
   return (
     <Dialog open={isOpen} onOpenChange={(open) => {
       if (!createCampaign.isPending) {
+        if (!open) {
+          setSelectedFileName("");
+          setUploadError("");
+          setUploadProgress(0);
+          setIsUploadingImage(false);
+        }
         setIsOpen(open);
       }
     }}>
@@ -335,11 +344,16 @@ export function CreateCampaignForm() {
                 </FormItem>
               )}
             />
-            <Button type="submit" className="w-full" disabled={createCampaign.isPending}>
+            <Button type="submit" className="w-full" disabled={createCampaign.isPending || isUploadingImage}>
               {createCampaign.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Creating Campaign...
+                </>
+              ) : isUploadingImage ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Uploading Image...
                 </>
               ) : (
                 "Launch Campaign"
