@@ -54,6 +54,10 @@ const formSchema = z.object({
     .string()
     .optional()
     .refine((val) => !val || val.trim() === "" || val.startsWith("https://"), "Twitter URL must start with https://"),
+  metadataUri: z
+    .string()
+    .optional()
+    .refine((val) => !val || val.startsWith("ipfs://") || val.startsWith("https://"), "Metadata URI must start with ipfs:// or https://"),
 });
 
 const NATIVE_XLM = "CDLZS3ZCDY7SF3SIVR6Y7I6SN636O27T7G5MKSUIU22ZS76E55WJIPZ4";
@@ -72,6 +76,7 @@ export function CreateCampaignForm() {
       acceptedToken: NATIVE_XLM,
       website: "",
       twitter: "",
+      metadataUri: "",
     },
   });
 
@@ -87,6 +92,7 @@ export function CreateCampaignForm() {
       await createCampaign.mutateAsync({
         title: values.title,
         beneficiary: values.beneficiary,
+        metadataUri: values.metadataUri || undefined,
         targetAmount: values.targetAmount,
         deadline,
         acceptedToken: values.acceptedToken,
