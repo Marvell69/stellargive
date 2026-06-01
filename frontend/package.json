@@ -43,7 +43,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@playwright/test": "^1.60.0",
+    "@next/bundle-analyzer": "^16.2.6",
     "@storybook/addon-essentials": "^8.4.0",
     "@storybook/addon-themes": "^8.4.0",
     "@storybook/nextjs": "^8.4.0",
