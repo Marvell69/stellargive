@@ -1,6 +1,4 @@
-use soroban_sdk::{
-    symbol_short, String,
-};
+use soroban_sdk::{symbol_short, String};
 
 mod helpers;
 use helpers::{register_and_setup, set_timestamp, single_ben};
@@ -68,10 +66,14 @@ fn test_gas_cost_max_title() {
     let after_mem = env.budget().memory_bytes_cost();
 
     assert!(result.is_ok());
-    
+
     // Print results for documentation (will be visible in test output with --nocapture)
     extern crate std;
-    std::println!("Gas for max title (50 chars): CPU: {}, MEM: {}", after_cpu - before_cpu, after_mem - before_mem);
+    std::println!(
+        "Gas for max title (50 chars): CPU: {}, MEM: {}",
+        after_cpu - before_cpu,
+        after_mem - before_mem
+    );
 }
 
 #[test]

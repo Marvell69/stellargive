@@ -4,8 +4,8 @@
 //! correct topic symbols, the right number of topics per event, accurate payload
 //! fields, and are emitted in the expected order.
 
-use soroban_sdk::{symbol_short, String, Symbol, TryFromVal};
 use soroban_sdk::testutils::Events as _;
+use soroban_sdk::{symbol_short, String, Symbol, TryFromVal};
 
 mod helpers;
 use helpers::{register_and_setup, set_timestamp, single_ben};
@@ -15,8 +15,7 @@ use stellar_give::{CreatedEvent, DonationEvent};
 /// `symbol_short!("created")`.
 #[test]
 fn test_create_event_topic_is_created_symbol() {
-    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) =
-        register_and_setup();
+    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = register_and_setup();
     set_timestamp(&env, 1_000);
 
     let bens = single_ben(&env, &beneficiary);
@@ -39,8 +38,7 @@ fn test_create_event_topic_is_created_symbol() {
         .filter(|(addr, _, _)| addr == &client.address)
         .count();
     assert_eq!(
-        contract_event_count,
-        1,
+        contract_event_count, 1,
         "create_campaign must emit exactly one contract event"
     );
 
@@ -56,7 +54,11 @@ fn test_create_event_topic_is_created_symbol() {
         .expect("CreatedEvent must be emitted by create_campaign");
 
     let topics = &event.1;
-    assert_eq!(topics.len(), 1, "created event must carry exactly one topic");
+    assert_eq!(
+        topics.len(),
+        1,
+        "created event must carry exactly one topic"
+    );
 
     let topic_sym = Symbol::try_from_val(&env, &topics.get(0).unwrap())
         .expect("topic[0] must decode as Symbol");
@@ -67,8 +69,7 @@ fn test_create_event_topic_is_created_symbol() {
 /// exactly: id, creator address, and target amount.
 #[test]
 fn test_create_event_payload_exact_match() {
-    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) =
-        register_and_setup();
+    let (env, client, creator, beneficiary, _donor, _admin, token_client, _) = register_and_setup();
     set_timestamp(&env, 1_000);
 
     let bens = single_ben(&env, &beneficiary);
@@ -100,8 +101,8 @@ fn test_create_event_payload_exact_match() {
         })
         .expect("CreatedEvent must be emitted by create_campaign");
 
-    let payload = CreatedEvent::try_from_val(&env, &event.2)
-        .expect("event data must decode as CreatedEvent");
+    let payload =
+        CreatedEvent::try_from_val(&env, &event.2).expect("event data must decode as CreatedEvent");
 
     assert_eq!(payload.id, id);
     assert_eq!(payload.creator, creator);
@@ -112,8 +113,7 @@ fn test_create_event_payload_exact_match() {
 /// `[symbol_short!("donation"), symbol_short!("received")]` in that order.
 #[test]
 fn test_donation_event_has_two_ordered_topics() {
-    let (env, client, creator, beneficiary, donor, _admin, token_client, _) =
-        register_and_setup();
+    let (env, client, creator, beneficiary, donor, _admin, token_client, _) = register_and_setup();
     set_timestamp(&env, 1_000);
 
     let bens = single_ben(&env, &beneficiary);
@@ -146,7 +146,11 @@ fn test_donation_event_has_two_ordered_topics() {
         .expect("DonationEvent must be emitted by donate");
 
     let topics = &event.1;
-    assert_eq!(topics.len(), 2, "donation event must carry exactly two topics");
+    assert_eq!(
+        topics.len(),
+        2,
+        "donation event must carry exactly two topics"
+    );
 
     let t0 = Symbol::try_from_val(&env, &topics.get(0).unwrap())
         .expect("topic[0] must decode as Symbol");
@@ -161,8 +165,7 @@ fn test_donation_event_has_two_ordered_topics() {
 /// state: campaign_id, donor, amount, total_raised, accepted_token, and comment.
 #[test]
 fn test_donation_event_payload_exact_match() {
-    let (env, client, creator, beneficiary, donor, _admin, token_client, _) =
-        register_and_setup();
+    let (env, client, creator, beneficiary, donor, _admin, token_client, _) = register_and_setup();
     set_timestamp(&env, 1_000);
 
     let bens = single_ben(&env, &beneficiary);
@@ -182,7 +185,13 @@ fn test_donation_event_payload_exact_match() {
     let donation_amount = 3_000_000_i128;
     let comment = String::from_str(&env, "keep up the great work");
 
-    client.donate(&donor, &id, &donation_amount, &false, &Some(comment.clone()));
+    client.donate(
+        &donor,
+        &id,
+        &donation_amount,
+        &false,
+        &Some(comment.clone()),
+    );
 
     let event = env
         .events()
@@ -212,8 +221,7 @@ fn test_donation_event_payload_exact_match() {
 /// a `created` event and a `donation`/`received` event in the contract log.
 #[test]
 fn test_create_and_donate_both_events_emitted() {
-    let (env, client, creator, beneficiary, donor, _admin, token_client, _) =
-        register_and_setup();
+    let (env, client, creator, beneficiary, donor, _admin, token_client, _) = register_and_setup();
     set_timestamp(&env, 1_000);
 
     let bens = single_ben(&env, &beneficiary);
@@ -239,8 +247,7 @@ fn test_create_and_donate_both_events_emitted() {
         .filter(|(addr, _, _)| addr == &client.address)
         .count();
     assert_eq!(
-        contract_event_count,
-        2,
+        contract_event_count, 2,
         "create + donate must produce exactly two contract events"
     );
 
@@ -259,7 +266,10 @@ fn test_create_and_donate_both_events_emitted() {
                 == Some(symbol_short!("donation"))
     });
 
-    assert!(has_created, "created event must be present after create_campaign");
+    assert!(
+        has_created,
+        "created event must be present after create_campaign"
+    );
     assert!(has_donation, "donation event must be present after donate");
 }
 
@@ -267,8 +277,7 @@ fn test_create_and_donate_both_events_emitted() {
 /// the `donation`/`received` event when both operations run in the same test.
 #[test]
 fn test_events_ordered_create_before_donation() {
-    let (env, client, creator, beneficiary, donor, _admin, token_client, _) =
-        register_and_setup();
+    let (env, client, creator, beneficiary, donor, _admin, token_client, _) = register_and_setup();
     set_timestamp(&env, 1_000);
 
     let bens = single_ben(&env, &beneficiary);

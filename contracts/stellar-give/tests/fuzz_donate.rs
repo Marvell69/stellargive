@@ -6,9 +6,7 @@
 //! contract's `checked_add` arithmetic without panicking.
 
 use proptest::prelude::*;
-use soroban_sdk::{
-    symbol_short, testutils::Address as _, token, Address, Env, String,
-};
+use soroban_sdk::{symbol_short, testutils::Address as _, token, Address, Env, String};
 use stellar_give::{ContractError, StellarGiveContract, StellarGiveContractClient};
 
 mod helpers;
@@ -19,11 +17,13 @@ const MIN_DONATION: i128 = 1_000_000;
 
 /// Sets up a fresh environment with a campaign and returns everything needed
 /// for donation tests. The campaign has a generous target and deadline.
-fn setup_fuzz_campaign(target_amount: i128) -> (
+fn setup_fuzz_campaign(
+    target_amount: i128,
+) -> (
     Env,
     StellarGiveContractClient<'static>,
-    Address,    // donor
-    u64,        // campaign_id
+    Address, // donor
+    u64,     // campaign_id
     token::Client<'static>,
 ) {
     let env = Env::default();
@@ -205,25 +205,13 @@ fn test_overflow_returns_arithmetic_error() {
 
     // First donation: a very large amount to bring raised near the overflow boundary
     let large_amount = i128::MAX / 4;
-    let result = client.try_donate(
-        &donor,
-        &campaign_id,
-        &large_amount,
-        &false,
-        &None,
-    );
+    let result = client.try_donate(&donor, &campaign_id, &large_amount, &false, &None);
     assert!(result.is_ok(), "First large donation should succeed");
 
     // Second donation: attempt to push past i128::MAX
     // This should fail cleanly with ArithmeticError or TokenTransferFailed, not panic
     let second_amount = i128::MAX / 2;
-    let result = client.try_donate(
-        &donor,
-        &campaign_id,
-        &second_amount,
-        &false,
-        &None,
-    );
+    let result = client.try_donate(&donor, &campaign_id, &second_amount, &false, &None);
 
     // We accept either ArithmeticError (overflow in checked_add) or
     // TokenTransferFailed (donor doesn't have enough tokens) — both are clean errors
@@ -231,7 +219,10 @@ fn test_overflow_returns_arithmetic_error() {
         Err(Ok(ContractError::ArithmeticError)) => {} // expected
         Err(Ok(ContractError::TokenTransferFailed)) => {} // also acceptable
         Ok(_) => panic!("Donation that would overflow should not succeed"),
-        other => panic!("Expected ArithmeticError or TokenTransferFailed, got {:?}", other),
+        other => panic!(
+            "Expected ArithmeticError or TokenTransferFailed, got {:?}",
+            other
+        ),
     }
 }
 
@@ -277,13 +268,10 @@ fn test_max_i128_donation_rejected() {
     );
 
     // Attempt i128::MAX donation — should fail, not panic
-    let result = client.try_donate(
-        &donor,
-        &campaign_id,
-        &i128::MAX,
-        &false,
-        &None,
-    );
+    let result = client.try_donate(&donor, &campaign_id, &i128::MAX, &false, &None);
 
-    assert!(result.is_err(), "i128::MAX donation should be rejected cleanly");
+    assert!(
+        result.is_err(),
+        "i128::MAX donation should be rejected cleanly"
+    );
 }

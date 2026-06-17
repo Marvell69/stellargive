@@ -41,13 +41,7 @@ fn test_claim_single_donation_exact_amount() {
 
     let initial_beneficiary_balance = token_client.balance(&beneficiary);
 
-    client.donate(
-        &donor,
-        &campaign_id,
-        &donation_amount,
-        &false,
-        &None,
-    );
+    client.donate(&donor, &campaign_id, &donation_amount, &false, &None);
 
     // The donation exceeds the target, so funds auto-claim within donate().
     let final_beneficiary_balance = token_client.balance(&beneficiary);
@@ -109,7 +103,8 @@ fn test_claim_multiple_donations_exact_total() {
     );
 
     assert_eq!(
-        total_donated, balance_increase + expected_fee,
+        total_donated,
+        balance_increase + expected_fee,
         "Total donated should equal beneficiary amount plus fee"
     );
 }

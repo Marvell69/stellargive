@@ -55,17 +55,18 @@ fn bench_get_campaigns_paged_100_campaigns() {
         .budget()
         .cpu_instruction_cost()
         .saturating_sub(cpu_before);
-    let mem_used = env
-        .budget()
-        .memory_bytes_cost()
-        .saturating_sub(mem_before);
+    let mem_used = env.budget().memory_bytes_cost().saturating_sub(mem_before);
 
     println!("CPU instructions used: {}", cpu_used);
     println!("Memory bytes used: {}", mem_used);
     println!("Campaigns returned: {}", campaigns.len());
 
     assert_eq!(campaigns.len(), 10);
-    assert!(cpu_used < 5_000_000, "CPU usage exceeded limit: {}", cpu_used);
+    assert!(
+        cpu_used < 5_000_000,
+        "CPU usage exceeded limit: {}",
+        cpu_used
+    );
 }
 
 #[test]
@@ -112,10 +113,7 @@ fn bench_get_campaigns_paged_with_limit_20() {
         .budget()
         .cpu_instruction_cost()
         .saturating_sub(cpu_before);
-    let mem_used = env
-        .budget()
-        .memory_bytes_cost()
-        .saturating_sub(mem_before);
+    let mem_used = env.budget().memory_bytes_cost().saturating_sub(mem_before);
 
     println!("CPU instructions for 20-item query: {}", cpu_used);
     println!("Memory bytes used: {}", mem_used);
@@ -177,12 +175,12 @@ fn bench_get_campaigns_by_id_batch() {
         .budget()
         .cpu_instruction_cost()
         .saturating_sub(cpu_before);
-    let mem_used = env
-        .budget()
-        .memory_bytes_cost()
-        .saturating_sub(mem_before);
+    let mem_used = env.budget().memory_bytes_cost().saturating_sub(mem_before);
 
-    println!("CPU instructions for batch query of 50 campaigns: {}", cpu_used);
+    println!(
+        "CPU instructions for batch query of 50 campaigns: {}",
+        cpu_used
+    );
     println!("Memory bytes used: {}", mem_used);
 
     assert_eq!(campaigns.len(), 50);
@@ -233,10 +231,7 @@ fn bench_get_campaigns_by_creator() {
         .budget()
         .cpu_instruction_cost()
         .saturating_sub(cpu_before);
-    let mem_used = env
-        .budget()
-        .memory_bytes_cost()
-        .saturating_sub(mem_before);
+    let mem_used = env.budget().memory_bytes_cost().saturating_sub(mem_before);
 
     println!(
         "CPU instructions for get_campaigns_by_creator ({} campaigns): {}",

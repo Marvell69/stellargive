@@ -4,9 +4,7 @@
 //! campaign's deadline has passed, and that the edge case at exactly the
 //! deadline timestamp behaves consistently with the contract's `>` comparison.
 
-use soroban_sdk::{
-    symbol_short, String,
-};
+use soroban_sdk::{symbol_short, String};
 
 mod helpers;
 use helpers::{register_and_setup, set_timestamp, single_ben};
@@ -39,13 +37,7 @@ fn test_donate_after_deadline() {
     // Advance time strictly past the deadline
     set_timestamp(&env, 1_101);
 
-    let result = client.try_donate(
-        &donor,
-        &campaign_id,
-        &1_000_000_i128,
-        &false,
-        &None,
-    );
+    let result = client.try_donate(&donor, &campaign_id, &1_000_000_i128, &false, &None);
 
     assert_eq!(result, Err(Ok(ContractError::CampaignNotActive)));
 }
@@ -80,15 +72,12 @@ fn test_donate_exactly_at_deadline() {
     set_timestamp(&env, 1_100);
 
     // Should succeed — contract uses strict `>` check
-    let result = client.try_donate(
-        &donor,
-        &campaign_id,
-        &1_000_000_i128,
-        &false,
-        &None,
-    );
+    let result = client.try_donate(&donor, &campaign_id, &1_000_000_i128, &false, &None);
 
-    assert!(result.is_ok(), "Donation at exactly the deadline should succeed");
+    assert!(
+        result.is_ok(),
+        "Donation at exactly the deadline should succeed"
+    );
 
     // Verify campaign is still active (not expired) with raised amount updated
     let campaign = client.get_campaign(&campaign_id);

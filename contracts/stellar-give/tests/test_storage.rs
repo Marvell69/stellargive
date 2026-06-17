@@ -1,7 +1,5 @@
-use soroban_sdk::{
-    symbol_short, String, testutils::Ledger,
-};
 use soroban_sdk::testutils::storage::Persistent;
+use soroban_sdk::{symbol_short, testutils::Ledger, String};
 
 mod helpers;
 use helpers::{register_and_setup, set_timestamp, single_ben};
@@ -40,17 +38,18 @@ fn test_persistent_storage_ttl_extension() {
     let mut ledger_info = env.ledger().get();
     ledger_info.sequence_number += advance_by;
     // Also advance timestamp to keep it consistent
-    ledger_info.timestamp += (advance_by as u64) * 5; 
+    ledger_info.timestamp += (advance_by as u64) * 5;
     env.ledger().set(ledger_info);
 
     // Try to read the campaign
     let result = client.try_get_campaign(&campaign_id);
-    
+
     match result {
         Ok(_) => {
-            let new_ttl = env.as_contract(&client.address, || env.storage().persistent().get_ttl(&key));
+            let new_ttl =
+                env.as_contract(&client.address, || env.storage().persistent().get_ttl(&key));
             std::println!("Campaign still exists. New TTL: {}", new_ttl);
-        },
+        }
         Err(e) => {
             std::println!("Campaign expired or read failed: {:?}", e);
             panic!("Campaign should have persisted if TTL extension was working or if advance was small enough");
