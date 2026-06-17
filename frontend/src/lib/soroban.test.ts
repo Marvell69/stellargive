@@ -5,7 +5,13 @@ vi.mock("@stellar/stellar-sdk", async (importActual) => {
   const actual = await importActual<typeof import("@stellar/stellar-sdk")>();
   return {
     ...actual,
-    rpc: { ...actual.rpc, Server: vi.fn(() => ({})) },
+    rpc: {
+      ...actual.rpc,
+      // Must be a constructable function (not an arrow) — soroban.ts does `new rpc.Server(...)`
+      Server: vi.fn(function () {
+        return {};
+      }),
+    },
   };
 });
 
