@@ -148,30 +148,35 @@ export async function getCampaignsPage(
   return { campaigns: all.slice(0, limit), hasMore };
 }
 
-export async function getTotalCampaigns(): Promise<number> {
-  const tx = new TransactionBuilder(
-    new Account("GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF", "0"),
-    {
-      fee: "100",
+export async function estimateFee(
+  sender: string,
+  func: string,
+  args: any[],
+): Promise<number | null> {
+  try {
+    const account = await server.getAccount(sender);
+    const tx = new TransactionBuilder(account, {
+      fee: "1000",
       networkPassphrase: NETWORK_PASSPHRASE,
-    },
-  )
-    .addOperation(
-      Operation.invokeHostFunction({
-        func: "get_total_campaigns",
-        contractId: CONTRACT_ID,
-        args: [],
-      } as any),
-    )
-    .setTimeout(30)
-    .build();
+    })
+      .addOperation(
+        Operation.invokeHostFunction({
+          func,
+          contractId: CONTRACT_ID,
+          args,
+        } as any),
+      )
+      .setTimeout(30)
+      .build();
 
-  const sim = await server.simulateTransaction(tx);
-  if (rpc.Api.isSimulationError(sim)) {
-    throw new Error(`Simulation failed: ${sim.error}`);
+    const sim = await server.simulateTransaction(tx);
+    if (rpc.Api.isSimulationError(sim)) return null;
+    return Number(
+      (sim as rpc.Api.SimulateTransactionSuccessResponse).minResourceFee ?? 0,
+    );
+  } catch {
+    return null;
   }
-  if (!sim.result) throw new Error("Failed to get total campaigns: no result");
-  return Number(scValToNative(sim.result.retval));
 }
 
 export interface SubmitOptions {
