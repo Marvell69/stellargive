@@ -102,7 +102,7 @@ docs/                    Security, deployment, architecture, contributing docs
 - Contract API: [`docs/CONTRACT_API.md`](./docs/CONTRACT_API.md)
 - Security: [`docs/SECURITY.md`](./docs/SECURITY.md)
 - Deployment: [`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md)
-- Contributing: [`docs/CONTRIBUTING.md`](./docs/CONTRIBUTING.md)
+- Contributing: [`CONTRIBUTING.md`](./CONTRIBUTING.md)
 - Video Transcript: [`docs/VIDEO_TRANSCRIPT.md`](./docs/VIDEO_TRANSCRIPT.md)
 - Litepaper: [`docs/WHITEPAPER.md`](./docs/WHITEPAPER.md)
 
@@ -138,7 +138,7 @@ docs/                    Security, deployment, architecture, contributing docs
 
 ## Contributor Onboarding
 
-Welcome! If you are new to the project, please start by reading our [Detailed Setup Guide](./docs/SETUP.md) which will walk you through installing all necessary dependencies (Rust, Soroban CLI, Node.js) across macOS, Linux, and Windows. Once your environment is set up, check out [`docs/CONTRIBUTING.md`](./docs/CONTRIBUTING.md) for our workflow guidelines.
+Welcome! If you are new to the project, please start by reading our [Detailed Setup Guide](./docs/SETUP.md) which will walk you through installing all necessary dependencies (Rust, Soroban CLI, Node.js) across macOS, Linux, and Windows. Once your environment is set up, check out [`CONTRIBUTING.md`](./CONTRIBUTING.md) for our workflow guidelines.
 
 ## 👥 Contributors
 
